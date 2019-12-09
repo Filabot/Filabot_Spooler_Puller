@@ -95,6 +95,7 @@ CMD_STR(geterror, "gets current error")
 CMD_STR(getsteps, "returns number of steps seen")
 CMD_STR(debug, "enables debug commands out USB")
 CMD_STR(FilamentCapture, "")
+CMD_STR(AutoCalibrate, "");
 //List of supported commands
 sCommand Cmds[] =
 {
@@ -158,6 +159,7 @@ sCommand Cmds[] =
 	COMMAND(getsteps),
 	COMMAND(debug),
 	COMMAND(FilamentCapture),
+	COMMAND(AutoCalibrate),
 	{"",0,""}, //End of list signal
 };
 
@@ -993,7 +995,10 @@ static int velocity_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 		float rpm;
 		rpm=atof(argv[0]);
 		x=(int64_t)(DIVIDE_WITH_ROUND(rpm*ANGLE_STEPS,60)) * 1.851; //divide with r
-		x = x + 1;
+		if (rpm != 0)
+			x = x + 1;
+		else
+			x = rpm;		
 
 		stepperCtrl.setVelocity(-x);
 	}
@@ -1013,28 +1018,10 @@ static int increase_rpm_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 	int64_t v;
 	int64_t t;
 
-	if (0 == argc)
-	{
-		t = stepperCtrl.getVelocity();
-		x = -DIVIDE_WITH_ROUND((stepperCtrl.getVelocity()*100 * 60), (ANGLE_STEPS));
-		
-		x = x + 101;
-		
-		v = (int64_t)(DIVIDE_WITH_ROUND(x*ANGLE_STEPS,60));
-		v = (int64_t)(DIVIDE_WITH_ROUND(v,100));
-		if (v <= 0) { v = 0;}
-		stepperCtrl.setVelocity(-v);
-		
-		int64_t y;
-		
-		y=abs(x-((x/100)*100));
-		//CommandPrintf(ptrUart,"Velocity is %d.%02d - %d\n\r",(int32_t)(x/100),(int32_t)y,(int32_t)stepperCtrl.getVelocity());
-		CommandPrintf(ptrUart,"1;velocity;%d.%02d",(int32_t)(x/100),(int32_t)y);
-	}
-	else
+	if (argc > 0)
 	{
 		float rpm;
-		rpm=atof(argv[0]);
+		rpm=atof(argv[0]) * 1.851;
 		x=(int64_t)(DIVIDE_WITH_ROUND(rpm*ANGLE_STEPS,60)); //divide with r
 		x = x + 1;
 		
@@ -1045,8 +1032,10 @@ static int increase_rpm_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 		if (x <= 0) { x = 0;}
 		stepperCtrl.setVelocity(-x);
 		
+		
+
 		int64_t y;
-		x=-(stepperCtrl.getVelocity()*100 *60)/(ANGLE_STEPS);
+		x=-(stepperCtrl.getVelocity()*100 *60)/(ANGLE_STEPS) / 1.851;
 		y=abs(x-((x/100)*100));
 		//CommandPrintf(ptrUart,"Velocity is %d.%02d - %d\n\r",(int32_t)(x/100),(int32_t)y,(int32_t)stepperCtrl.getVelocity());
 		CommandPrintf(ptrUart,"1;velocity;%d.%02d",(int32_t)(x/100),(int32_t)y);
@@ -1060,29 +1049,10 @@ static int decrease_rpm_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 	int64_t x;
 	int64_t v;
 
-	if (0 == argc)
-	{
-		x = -DIVIDE_WITH_ROUND((stepperCtrl.getVelocity()*100 * 60), (ANGLE_STEPS));
-		
-		x = x - 99;
-		
-		v = (int64_t)(DIVIDE_WITH_ROUND(x*ANGLE_STEPS,60));
-		v = (int64_t)(DIVIDE_WITH_ROUND(v,100));
-		
-		if (v <= 0) { v = 0;}
-		stepperCtrl.setVelocity(-v);
-		
-		int64_t y;
-		
-		y=abs(x-((x/100)*100));
-		//CommandPrintf(ptrUart,"Velocity is %d.%02d - %d\n\r",(int32_t)(x/100),(int32_t)y,(int32_t)stepperCtrl.getVelocity());
-		CommandPrintf(ptrUart,"1;velocity;%d.%02d",(int32_t)(x/100),(int32_t)y);
-		
-	}
-	else
+	if (argc > 0)
 	{
 		float rpm;
-		rpm=atof(argv[0]);
+		rpm=atof(argv[0]) * 1.851;
 		x=(int64_t)(DIVIDE_WITH_ROUND(rpm*ANGLE_STEPS,60)); //divide with r
 		x = x - 1;
 		
@@ -1095,7 +1065,7 @@ static int decrease_rpm_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 		stepperCtrl.setVelocity(-x);
 		
 		int64_t y;
-		x=-(stepperCtrl.getVelocity()*100 *60)/(ANGLE_STEPS);
+		x=-(stepperCtrl.getVelocity()*100 *60)/(ANGLE_STEPS) / 1.851;
 		y=abs(x-((x/100)*100));
 		//CommandPrintf(ptrUart,"Velocity is %d.%02d - %d\n\r",(int32_t)(x/100),(int32_t)y,(int32_t)stepperCtrl.getVelocity());
 		CommandPrintf(ptrUart,"1;velocity;%d.%02d",(int32_t)(x/100),(int32_t)y);
@@ -1118,7 +1088,7 @@ static int PullerRPM_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 			x=int(pos);
 			
 			
-			unsigned long timeDifference = millis() - previousMillis;
+			int64_t timeDifference = millis() - previousMillis;
 			float rpm = (((float)abs(x) / (float)timeDifference) * 1000 / 6) / (float)1.851; //1.857 is ratio of motor pulley to roller pulley
 			y= abs(((float)rpm - (int32_t)rpm) * 100);
 			CommandPrintf(ptrUart,"1;PullerRPM;%d.%02d",(int32_t)rpm, y);
@@ -1161,6 +1131,28 @@ static int FilamentLength_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 			remain = abs(((float)filamentLength - (int32_t)filamentLength) * 100);
 			CommandPrintf(ptrUart,"1;FilamentLength;%d.%02d",(int32_t)filamentLength, remain );
 		}
+	}
+	
+	return 0;
+}
+
+static int AutoCalibrate_cmd(sCmdUart *ptrUart,int argc, char * argv[])
+{
+	if (argc == 0)
+	{
+
+		stepperCtrl.setVelocity(0);
+		stepperCtrl.calibrateEncoder();
+
+		SystemParams_t systemParams;
+
+		memcpy(&systemParams,&NVM->SystemParams, sizeof(systemParams) );
+
+		systemParams.controllerMode=(feedbackCtrl_t)(CTRL_POS_VELOCITY_PID); //after calibration set memory for next boot
+
+		nvmWriteSystemParms(systemParams);
+		nvmWrite_vPID(0.5,0.5,0.5);
+		stepperCtrl.updateParamsFromNVM();
 	}
 	
 	return 0;
@@ -1366,21 +1358,23 @@ return 0;
 */
 static int vpid_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 {
-	CommandPrintf(ptrUart, "args %d\n\r",argc);
+	//CommandPrintf(ptrUart, "args %d\n\r",argc);
 	if (0 == argc)
 	{
 		int32_t x,y;
 		x=(int32_t)NVM->vPID.Kp;
 		y=abs(1000*NVM->vPID.Kp-(x*1000));
-		CommandPrintf(ptrUart,"Kp %d.%03d\n\r",x,y);
-
+		CommandPrintf(ptrUart,"1;vpid;Kp %d.%03d\n\r",x,y);
+		
+		delay(10);
 		x=(int32_t)NVM->vPID.Ki;
 		y=abs(1000*NVM->vPID.Ki-(x*1000));
-		CommandPrintf(ptrUart,"Ki %d.%03d\n\r",x,y);
+		CommandPrintf(ptrUart,"1;vpid;Ki %d.%03d\n\r",x,y);
 
+		delay(10);
 		x=(int32_t)NVM->vPID.Kd;
 		y=abs(1000*NVM->vPID.Kd-(x*1000));
-		CommandPrintf(ptrUart,"Kd %d.%03d\n\r",x,y);
+		CommandPrintf(ptrUart,"1;vpid;Kd %d.%03d\n\r",x,y);
 	}
 	if (3 == argc)
 	{
@@ -1713,8 +1707,9 @@ void commandsInit(void)
 {
 	CommandInit(&UsbUart, kbhit, getChar, putch ,NULL); //set up the UART structure
 	
-
+	#ifdef USE_STEP_DIR_SERIAL
 	CommandInit(&HostUart, kbhit_step_dir, getChar_step_dir, putch_step_dir ,NULL); //set up the UART structure for step and dir pins
+	#endif //USE_STEP_DIR_SERIAL
 
 	#ifdef CMD_SERIAL_PORT
 	CommandInit(&SerialUart, kbhit_hw, getChar_hw, putch_hw ,NULL); //set up the UART structure

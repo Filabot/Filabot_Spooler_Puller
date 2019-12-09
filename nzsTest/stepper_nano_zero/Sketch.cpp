@@ -7,16 +7,23 @@
 //Beginning of Auto generated function prototypes by Atmel Studio
 //End of Auto generated function prototypes by Atmel Studio
 
+#ifdef WDT
+#undef WDT
+#endif
+
 
 
 NZS nzs;
-  
+
 
 void setup() {
-  nzs.begin();
+
+	
+	
+	nzs.begin();
 }
 
 
 void loop() {
-	nzs.loop(); 
+	nzs.loop();
 }

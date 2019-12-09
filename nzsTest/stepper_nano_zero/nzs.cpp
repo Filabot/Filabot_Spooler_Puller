@@ -23,6 +23,24 @@
 #pragma GCC push_options
 #pragma GCC optimize ("-Ofast")
 
+
+#define PM_RCAUSE_OFFSET            0x38         /**< \brief (PM_RCAUSE offset) Reset Cause */
+#define PM_RCAUSE_RESETVALUE        0x01ul       /**< \brief (PM_RCAUSE reset_value) Reset Cause */
+
+#define PM_RCAUSE_POR_Pos           0            /**< \brief (PM_RCAUSE) Power On Reset */
+#define PM_RCAUSE_POR               (0x1ul << PM_RCAUSE_POR_Pos)
+#define PM_RCAUSE_BOD12_Pos         1            /**< \brief (PM_RCAUSE) Brown Out 12 Detector Reset */
+#define PM_RCAUSE_BOD12             (0x1ul << PM_RCAUSE_BOD12_Pos)
+#define PM_RCAUSE_BOD33_Pos         2            /**< \brief (PM_RCAUSE) Brown Out 33 Detector Reset */
+#define PM_RCAUSE_BOD33             (0x1ul << PM_RCAUSE_BOD33_Pos)
+#define PM_RCAUSE_EXT_Pos           4            /**< \brief (PM_RCAUSE) External Reset */
+#define PM_RCAUSE_EXT               (0x1ul << PM_RCAUSE_EXT_Pos)
+#define PM_RCAUSE_WDT_Pos           5            /**< \brief (PM_RCAUSE) Watchdog Reset */
+#define PM_RCAUSE_WDT               (0x1ul << PM_RCAUSE_WDT_Pos)
+#define PM_RCAUSE_SYST_Pos          6            /**< \brief (PM_RCAUSE) System Reset Request */
+#define PM_RCAUSE_SYST              (0x1ul << PM_RCAUSE_SYST_Pos)
+#define PM_RCAUSE_MASK              0x77ul       /**< \brief (PM_RCAUSE) MASK Register */
+
 eepromData_t PowerupEEPROM={0};
 
 
@@ -610,6 +628,8 @@ static void configure_bod(void)
 
 void NZS::begin(void)
 {
+
+
 	int to=20;
 	stepCtrlError_t stepCtrlError;
 
@@ -622,13 +642,13 @@ void NZS::begin(void)
 
 	//setup the serial port for syslog
 	Serial5.begin(SERIAL_BAUD);
-  
+  //delay(5000);
 
 
 #ifndef CMD_SERIAL_PORT
 	SysLogInit(&Serial5,LOG_DEBUG); //use SWO for the sysloging
 #else
-	SysLogInit(NULL, LOG_WARNING);
+	SysLogInit(&SerialUSB, LOG_WARNING);
 #endif
 
 	LOG("Power up!");
@@ -638,19 +658,55 @@ void NZS::begin(void)
 	if (digitalRead(PIN_USB_PWR))
 	{
 		//wait for USB serial port to come alive
-		while (!SerialUSB)
-		{
-			to--;
-			if (to == 0)
-			{
-				break;
-			}
+		while (!SerialUSB.dtr())
+		{ //wait indefinitely 
+			//to--;
+			//if (to == 0)
+			//{
+				//break;
+			//}
 			delay(500);
 		};     //wait for serial
 	} else
 	{
 		WARNING("USB Not connected");
 	}
+
+	volatile uint32_t status = PM->RCAUSE.reg;
+	char* reason = {0};
+	switch (status)
+	{
+		case PM_RCAUSE_SYST:
+		reason = "System Reset Request";
+		break;
+
+		case PM_RCAUSE_WDT:
+		reason = "Watchdog Restart";
+		break;
+
+		case PM_RCAUSE_EXT:
+		reason = "External Restart";
+		break;
+
+		case PM_RCAUSE_BOD33:
+		reason = "Brownout33";
+		break;
+
+		case PM_RCAUSE_BOD12:
+		reason = "Brownout12";
+		break;
+
+		case PM_RCAUSE_POR:
+		reason = "Power on Reset";
+		break;
+
+		default:
+		break;
+	}
+
+	LOG("Restarted because: %s ", reason);
+	
+	SysLogDisable();
 
 	validateAndInitNVMParams();
 
@@ -702,7 +758,7 @@ void NZS::begin(void)
 
 		if (STEPCTRL_NO_CAL == stepCtrlError)
 		{
-			SerialUSB.println("You need to Calibrate");
+			SerialUSB.println("Trying to Calibrate, Please wait...");
 #ifndef DISABLE_LCD
 			Lcd.lcdShow("   NOT ", "Calibrated", " ");
 			Lcd.setMenu(MenuCal);
@@ -712,7 +768,9 @@ void NZS::begin(void)
 			//TODO add code here for LCD and command line loop
 			while(false == stepperCtrl.calibrationValid())
 			{
-				commandsProcess(); //handle commands
+				//commandsProcess(); //handle commands
+				stepperCtrl.calibrateEncoder();
+
 #ifndef DISABLE_LCD
 				Lcd.process();
 #endif
@@ -720,6 +778,19 @@ void NZS::begin(void)
 #ifndef DISABLE_LCD
 			Lcd.setMenu(NULL);
 #endif
+			SerialUSB.println("Calibration successful");
+
+
+			SystemParams_t systemParams;
+
+			memcpy(&systemParams,&NVM->SystemParams, sizeof(systemParams) );
+
+			systemParams.controllerMode=(feedbackCtrl_t)(CTRL_POS_VELOCITY_PID); //after calibration set memory for next boot
+
+			nvmWriteSystemParms(systemParams);
+			nvmWrite_vPID(0.5,0.5,0.5);
+			stepperCtrl.updateParamsFromNVM();
+
 		}
 
 		if (STEPCTRL_NO_ENCODER == stepCtrlError)
@@ -852,7 +923,7 @@ void NZS::loop(void)
 	//stepperCtrl.PrintData(); //prints steps and angle to serial USB.
 
 
-	printLocation(); //print out the current location
+	//printLocation(); //print out the current location
 
 	return;
 }

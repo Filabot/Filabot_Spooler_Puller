@@ -147,7 +147,7 @@ void StepperCtrl::updateParamsFromNVM(void)
 		//MotorParams_t Params;
 		motorParams.fullStepsPerRotation = 200;
 		motorParams.currentHoldMa = 500;
-		motorParams.currentMa = 1500;
+		motorParams.currentMa = 2200;
 		motorParams.homeHoldMa = 200;
 		motorParams.homeMa = 800;
 		motorParams.motorWiring = true;
@@ -987,14 +987,10 @@ bool StepperCtrl::vpidFeedback(int64_t desiredLoc, int64_t currentLoc, Control_t
 	static int64_t lastY=getCurrentLocation();
 	static int32_t lastError=0;
 	static int64_t Iterm=0;
+	static int64_t lastSetZero = 0;
 	int64_t y,z;
 	int64_t v,dy;
 	int64_t u;
-	static long previousMillis = 0;
-
-
-	
-
 	
 
 	//get the current location
@@ -1010,40 +1006,15 @@ bool StepperCtrl::vpidFeedback(int64_t desiredLoc, int64_t currentLoc, Control_t
 
 	v=v*NZS_CONTROL_LOOP_HZ;
 
-	//if (millis() > previousMillis + 1000)
-	//{
-		//SerialUSB.print("lastY: ");
-		//SerialUSB.println(lastY);
-		//SerialUSB.print("lastError: ");
-		//SerialUSB.println(lastError);
-		//SerialUSB.print("Iterm: ");
-		//SerialUSB.println(Iterm);
-		//SerialUSB.print("velocity: ");
-		//SerialUSB.println(velocity);
-		//SerialUSB.print("v: ");
-		//SerialUSB.println(v);
-		////previousMillis = millis();
-	//}
-
-
-	if (enableFeedback) //if ((micros()-lastCall)>(updateRate/10))
+	
+	if (enableFeedback)
 	{
 		int64_t error,U;
 		error = velocity-v;
-
-
+		
+		
 		//code to reduce spinup
 		Iterm += (vPID.Ki * error);
-
-		//if (Iterm > 7906172160)
-		//{
-			//Iterm = 7906172160;
-		//}
-		//if (Iterm < -7906172160)
-		//{
-			//Iterm = -7906172160;
-		//}
-		//CTRL_PID_SCALING is 1024;
 
 		if (Iterm>(16*4096*CTRL_PID_SCALING *((int64_t)motorParams.currentMa) / 20))
 		{
@@ -1072,45 +1043,38 @@ bool StepperCtrl::vpidFeedback(int64_t desiredLoc, int64_t currentLoc, Control_t
 		}
 
 		//when error is positive we need to move reverse direction
-
-
-		if (u>0)
+		if (velocity != 0)
 		{
+			
+
+			if (u>0)
 			z=z+(fullStep);
-		}else
-		{
+			else
 			z=z-(fullStep);
 
+			lastSetZero = z;
+		}
+		else
+		{
+			z = lastSetZero - fullStep;
+			U = motorParams.currentHoldMa;
+			error = 0;
+			Iterm = 0;
+			
+			
 		}
 
-		
-
-		//if (millis() > previousMillis + 1000)
-		//{
-		//SerialUSB.print("desiredLoc: ");
-		//SerialUSB.println(desiredLoc);
-		//SerialUSB.print("currentLoc: ");
-		//SerialUSB.println(currentLoc);
-		//previousMillis = millis();
-		//}
-		
 		ptrCtrl->ma=U;
 		ptrCtrl->angle=(int32_t)z;
-		moveToAngle(z,U);
+		if (error != 0)
+		{
+			moveToAngle(z,U); //if there is no error, just lock the rotor
+		}
 		loopError=error;
 		lastError=error;
-
-		//if (millis() > previousMillis + 1000)
-		//{
-			//SerialUSB.print("z: ");
-			//SerialUSB.println(z);
-			//SerialUSB.print("U: ");
-			//SerialUSB.println(U);
-			//previousMillis = millis();
-		//}
-
 		
-	} else
+	}
+	else
 	{
 		lastError=0;
 		Iterm=0;
@@ -1617,9 +1581,9 @@ bool StepperCtrl::processFeedback(void)
 	bool ret;
 	int32_t us, j;
 	Control_t ctrl;
-	int64_t desiredLoc;
-	int64_t currentLoc;
-	int32_t steps;
+	volatile int64_t desiredLoc;
+	volatile int64_t currentLoc;
+	volatile int32_t steps;
 	static int64_t mean = 0;;
 
 	us = micros();

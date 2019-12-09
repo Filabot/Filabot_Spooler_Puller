@@ -34,10 +34,10 @@
 
 #define NEW_LINE "\n\r"
 
-Uart *ptrSerial=NULL;
+Stream *ptrSerial=NULL;
 eLogLevel SyslogLevelToWrite;
 
-bool DebugUART=false;
+bool DebugUART=true;
 static char buffer[SYSLOG_BUFFER_SIZE];
 static unsigned int BufIndex=0;
 
@@ -46,6 +46,7 @@ static int SysLog_Enabled=1;
 int SysLogDisable(void)
 {
 	SysLog_Enabled=0;
+	DebugUART = false;
 	return 0;
 }
 
@@ -88,7 +89,7 @@ void SysLogPuts(const char *ptrStr)
 }
 
 int SysLogInitDone=0;
-void SysLogInit(Uart *ptrSerialObj, eLogLevel LevelToWrite)
+void SysLogInit(Stream *ptrSerialObj, eLogLevel LevelToWrite)
 {
 	ptrSerial=ptrSerialObj;
 	SyslogLevelToWrite=LevelToWrite;
