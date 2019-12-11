@@ -73,6 +73,7 @@ CMD_STR(increase_rpm, "increases motor RPM by +1 rpm");
 CMD_STR(decrease_rpm, "decreases motor RPM by -1 rpm");
 CMD_STR(PullerRPM, "gets rpm of motor output shaft as decimal integer");
 CMD_STR(FilamentLength, "gets current angle of motor output shaft as decimal integer");
+CMD_STR(Feedrate, "");
 CMD_STR(factoryreset, "resets board to factory defaults");
 CMD_STR(stop, "stops the motion planner");
 CMD_STR(setzero, "set the reference angle to zero");
@@ -96,6 +97,7 @@ CMD_STR(getsteps, "returns number of steps seen")
 CMD_STR(debug, "enables debug commands out USB")
 CMD_STR(FilamentCapture, "")
 CMD_STR(AutoCalibrate, "");
+
 //List of supported commands
 sCommand Cmds[] =
 {
@@ -137,6 +139,7 @@ sCommand Cmds[] =
 	COMMAND(decrease_rpm),
 	COMMAND(PullerRPM),
 	COMMAND(FilamentLength),
+	COMMAND(Feedrate),
 	COMMAND(factoryreset),
 	COMMAND(stop),
 	COMMAND(setzero),
@@ -1130,6 +1133,42 @@ static int FilamentLength_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 			float filamentLength = x * 0.0002953125;
 			remain = abs(((float)filamentLength - (int32_t)filamentLength) * 100);
 			CommandPrintf(ptrUart,"1;FilamentLength;%d.%02d",(int32_t)filamentLength, remain );
+		}
+	}
+	
+	return 0;
+}
+
+static int Feedrate_cmd(sCmdUart *ptrUart,int argc, char * argv[])
+{
+	if (argc == 0){
+		if (previousMillis != 0)
+		{
+			static int64_t previousFeedrateTime = 0;
+			static float previousPos = 0;
+			int32_t x;
+			int32_t y;
+			int32_t remain;
+			int64_t currentAngle = abs(stepperCtrl.getCurrentAngle());
+			int64_t timeDifference = 0;
+			uint32_t feedRate = 0;
+			float pos=ANGLE_T0_DEGREES(currentAngle);
+			
+			
+			if (isCapturing)
+			{
+				x=int(pos) - previousPos;
+				timeDifference = millis() - previousFeedrateTime;
+				previousFeedrateTime = millis();
+
+				float filamentLength = x * 0.0002953125 * 1000;
+				
+
+				feedRate = (filamentLength * timeDifference) / 1000;			
+				CommandPrintf(ptrUart,"1;Feedrate;%d",feedRate );
+
+				previousPos = pos;
+			}
 		}
 	}
 	
