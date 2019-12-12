@@ -1025,15 +1025,6 @@ bool StepperCtrl::vpidFeedback(int64_t desiredLoc, int64_t currentLoc, Control_t
 			Iterm=-(16*4096*CTRL_PID_SCALING*((int64_t)motorParams.currentMa) / 20);
 		}
 
-		//if (Iterm>(16*4096*CTRL_PID_SCALING *(int64_t)motorParams.currentMa))
-		//{
-		//Iterm=(16*4096*CTRL_PID_SCALING *(int64_t)motorParams.currentMa);
-		//}
-		//if (Iterm<-(16*4096*CTRL_PID_SCALING *(int64_t)motorParams.currentMa))
-		//{
-		//Iterm=-(16*4096*CTRL_PID_SCALING*(int64_t)motorParams.currentMa);
-		//}
-
 		u=((vPID.Kp * error) + Iterm - (vPID.Kd *(lastError-error)));
 		U=abs(u)/CTRL_PID_SCALING/1024; //scale the error to make PID params close to 1.0;//scale the error to make PID params close to 1.0 by dividing by 1024
 

@@ -1082,27 +1082,18 @@ static int PullerRPM_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 	if (argc == 0){
 		if (previousMillis != 0)
 		{
-			float pos;
-			int32_t x;
-			int32_t y;
+			int32_t pos;
 			int64_t currentAngle= stepperCtrl.getCurrentAngle();
 			uint64_t angleDifference = abs(abs(currentAngle) - abs(previousAngle));
-			pos=ANGLE_T0_DEGREES(angleDifference);
-			x=int(pos);
+			pos = ANGLE_T0_DEGREES(angleDifference) * 1000; //*1000 gets us into int's instead of floats
 			
-			
-			int64_t timeDifference = millis() - previousMillis;
-			float rpm = (((float)abs(x) / (float)timeDifference) * 1000 / 6) / (float)1.851; //1.857 is ratio of motor pulley to roller pulley
-			y= abs(((float)rpm - (int32_t)rpm) * 100);
-			CommandPrintf(ptrUart,"1;PullerRPM;%d.%02d",(int32_t)rpm, y);
+			int32_t timeDifference = millis() - previousMillis;
+			int32_t rpm = ((abs(pos + 0.0) / (timeDifference + 0.0)) / 6.0 ) / 1.851; //1.857 is ratio of motor pulley to roller pulley
+			CommandPrintf(ptrUart,"1;PullerRPM;%d",rpm);
 			previousAngle = currentAngle;
 		}
 
 		previousMillis = millis();
-		
-		
-		//stepperCtrl.setZero();
-		
 	}
 	
 	return 0;
@@ -1146,6 +1137,7 @@ static int Feedrate_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 		{
 			static int64_t previousFeedrateTime = 0;
 			static float previousPos = 0;
+			static bool firstPass = false;
 			int32_t x;
 			int32_t y;
 			int32_t remain;
@@ -1164,11 +1156,21 @@ static int Feedrate_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 				float filamentLength = x * 0.0002953125 * 1000;
 				
 
-				feedRate = (filamentLength * timeDifference) / 1000;			
-				CommandPrintf(ptrUart,"1;Feedrate;%d",feedRate );
+				feedRate = (filamentLength * timeDifference) / 1000;	
+				if (!firstPass)		
+					CommandPrintf(ptrUart,"1;Feedrate;%d",feedRate );
+					
+				firstPass = false;
 
-				previousPos = pos;
 			}
+			else
+			{
+				firstPass = true;
+			}
+
+			previousPos = pos;
+			
+			
 		}
 	}
 	
