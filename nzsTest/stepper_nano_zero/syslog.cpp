@@ -41,7 +41,7 @@ bool DebugUART=true;
 static char buffer[SYSLOG_BUFFER_SIZE];
 static unsigned int BufIndex=0;
 
-static int SysLog_Enabled=1;
+static int SysLog_Enabled=0;
 
 int SysLogDisable(void)
 {

@@ -97,6 +97,7 @@ CMD_STR(getsteps, "returns number of steps seen")
 CMD_STR(debug, "enables debug commands out USB")
 CMD_STR(FilamentCapture, "")
 CMD_STR(AutoCalibrate, "");
+CMD_STR(PullerRestartReason, "");
 
 //List of supported commands
 sCommand Cmds[] =
@@ -163,6 +164,7 @@ sCommand Cmds[] =
 	COMMAND(debug),
 	COMMAND(FilamentCapture),
 	COMMAND(AutoCalibrate),
+	COMMAND(PullerRestartReason),
 	{"",0,""}, //End of list signal
 };
 
@@ -1077,9 +1079,9 @@ static int decrease_rpm_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 }
 static int PullerRPM_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 {
-
 	
-	if (argc == 0){
+	if (argc == 0)
+	{
 		if (previousMillis != 0)
 		{
 			int32_t pos;
@@ -1197,6 +1199,48 @@ static int AutoCalibrate_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 	}
 	
 	return 0;
+}
+
+static int PullerRestartReason_cmd(sCmdUart *ptrUart,int argc, char * argv[])
+{
+	if (argc == 0)
+	{
+
+		volatile uint32_t status = PM->RCAUSE.reg;
+		char* reason = {0};
+		switch (status)
+		{
+			case PM_RCAUSE_SYST:
+			reason = "System Reset Request";
+			break;
+
+			case PM_RCAUSE_WDT:
+			reason = "Watchdog Restart";
+			break;
+
+			case PM_RCAUSE_EXT:
+			reason = "External Restart";
+			break;
+
+			case PM_RCAUSE_BOD33:
+			reason = "Brownout33";
+			break;
+
+			case PM_RCAUSE_BOD12:
+			reason = "Brownout12";
+			break;
+
+			case PM_RCAUSE_POR:
+			reason = "Power on Reset";
+			break;
+
+			default:
+			break;
+		}
+
+		CommandPrintf(ptrUart,"1;PullerRestartReason;%s",reason );
+	}
+
 }
 
 //

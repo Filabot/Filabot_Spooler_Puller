@@ -630,7 +630,7 @@ void NZS::begin(void)
 {
 
 
-	int to=20;
+	int to=3;
 	stepCtrlError_t stepCtrlError;
 
 	//set up the pins correctly on the board.
@@ -659,54 +659,20 @@ void NZS::begin(void)
 	{
 		//wait for USB serial port to come alive
 		while (!SerialUSB.dtr())
-		{ //wait indefinitely 
-			//to--;
-			//if (to == 0)
-			//{
-				//break;
-			//}
-			delay(500);
-		};     //wait for serial
+		{
+			to--;
+			if (to == 0)
+			{
+				break;
+			}
+			delay(1000);
+		}     //wait for serial
 	} else
 	{
 		WARNING("USB Not connected");
 	}
 
-	volatile uint32_t status = PM->RCAUSE.reg;
-	char* reason = {0};
-	switch (status)
-	{
-		case PM_RCAUSE_SYST:
-		reason = "System Reset Request";
-		break;
-
-		case PM_RCAUSE_WDT:
-		reason = "Watchdog Restart";
-		break;
-
-		case PM_RCAUSE_EXT:
-		reason = "External Restart";
-		break;
-
-		case PM_RCAUSE_BOD33:
-		reason = "Brownout33";
-		break;
-
-		case PM_RCAUSE_BOD12:
-		reason = "Brownout12";
-		break;
-
-		case PM_RCAUSE_POR:
-		reason = "Power on Reset";
-		break;
-
-		default:
-		break;
-	}
-
-	LOG("Restarted because: %s ", reason);
-	
-	SysLogDisable();
+	//SysLogDisable();
 
 	validateAndInitNVMParams();
 
