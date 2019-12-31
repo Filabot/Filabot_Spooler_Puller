@@ -20,7 +20,7 @@ sCmdUart HostUart; //uart on the step/dir pins
 
 unsigned long previousMillis;//for PullerRPM command
 int64_t long previousAngle = 0;
-uint64_t long previousPullerTicks = 0;
+int64_t long previousPullerTicks = 0;
 bool isCapturing = false;
 
 static int isPowerOfTwo (unsigned int x)
@@ -998,20 +998,16 @@ static int velocity_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 	if (1 == argc)
 	{
 		float rpm;
-		rpm=atof(argv[0]);
-		x=(int64_t)(DIVIDE_WITH_ROUND(rpm*ANGLE_STEPS,60)) * 1.851; //divide with r
-		if (rpm != 0)
-			x = x + 1;
-		else
-			x = rpm;		
+		rpm=atof(argv[0]) * 1.851;
+		x=(int64_t)(DIVIDE_WITH_ROUND(rpm*ANGLE_STEPS,60)); //divide with r
 
 		stepperCtrl.setVelocity(-x);
 	}
 	int64_t y;
-	x=-((stepperCtrl.getVelocity()*100 *60)/(ANGLE_STEPS)) / 1.851;
+	x= DIVIDE_WITH_ROUND(abs((stepperCtrl.getVelocity()*100 *60)), (ANGLE_STEPS)) / 1.851;
 	y=abs(x-((x/100)*100));
 	//CommandPrintf(ptrUart,"Velocity is %d.%02d - %d\n\r",(int32_t)(x/100),(int32_t)y,(int32_t)stepperCtrl.getVelocity());
-	CommandPrintf(ptrUart,"1;velocity;%d.%02d",(int32_t)(x/100),(int32_t)y);
+	CommandPrintf(ptrUart,"1;velocity;%d.%02d;",(int32_t)(x/100),(int32_t)y);
 
 	return 0;
 }
@@ -1028,8 +1024,7 @@ static int increase_rpm_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 		float rpm;
 		rpm=atof(argv[0]) * 1.851;
 		x=(int64_t)(DIVIDE_WITH_ROUND(rpm*ANGLE_STEPS,60)); //divide with r
-		x = x + 1;
-		
+				
 		int64_t z;
 		z = -stepperCtrl.getVelocity();
 		
@@ -1040,10 +1035,10 @@ static int increase_rpm_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 		
 
 		int64_t y;
-		x=-(stepperCtrl.getVelocity()*100 *60)/(ANGLE_STEPS) / 1.851;
+		x= DIVIDE_WITH_ROUND(abs((stepperCtrl.getVelocity()*100 *60)), (ANGLE_STEPS)) / 1.851;
 		y=abs(x-((x/100)*100));
 		//CommandPrintf(ptrUart,"Velocity is %d.%02d - %d\n\r",(int32_t)(x/100),(int32_t)y,(int32_t)stepperCtrl.getVelocity());
-		CommandPrintf(ptrUart,"1;velocity;%d.%02d",(int32_t)(x/100),(int32_t)y);
+		CommandPrintf(ptrUart,"1;velocity;%d.%02d;",(int32_t)(x/100),(int32_t)y);
 		
 	}
 	return 0;
@@ -1059,8 +1054,7 @@ static int decrease_rpm_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 		float rpm;
 		rpm=atof(argv[0]) * 1.851;
 		x=(int64_t)(DIVIDE_WITH_ROUND(rpm*ANGLE_STEPS,60)); //divide with r
-		x = x - 1;
-		
+				
 		int64_t z;
 		z = -stepperCtrl.getVelocity();
 		
@@ -1070,10 +1064,10 @@ static int decrease_rpm_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 		stepperCtrl.setVelocity(-x);
 		
 		int64_t y;
-		x=-(stepperCtrl.getVelocity()*100 *60)/(ANGLE_STEPS) / 1.851;
+		x= DIVIDE_WITH_ROUND(abs((stepperCtrl.getVelocity()*100 *60)), (ANGLE_STEPS)) / 1.851;
 		y=abs(x-((x/100)*100));
 		//CommandPrintf(ptrUart,"Velocity is %d.%02d - %d\n\r",(int32_t)(x/100),(int32_t)y,(int32_t)stepperCtrl.getVelocity());
-		CommandPrintf(ptrUart,"1;velocity;%d.%02d",(int32_t)(x/100),(int32_t)y);
+		CommandPrintf(ptrUart,"1;velocity;%d.%02d;",(int32_t)(x/100),(int32_t)y);
 	}
 	return 0;
 }
@@ -1091,7 +1085,7 @@ static int PullerRPM_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 			
 			int32_t timeDifference = millis() - previousMillis;
 			int32_t rpm = ((abs(pos + 0.0) / (timeDifference + 0.0)) / 6.0 ) / 1.851; //1.857 is ratio of motor pulley to roller pulley
-			CommandPrintf(ptrUart,"1;PullerRPM;%d",rpm);
+			CommandPrintf(ptrUart,"1;PullerRPM;%d;",rpm);
 			previousAngle = currentAngle;
 		}
 
@@ -1107,8 +1101,8 @@ static int FilamentLength_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 		if (previousMillis != 0)
 		{
 			float pos;
-			int32_t x;
-			int32_t y;
+			int64_t x;
+			int64_t y;
 			int32_t remain;
 			int64_t currentAngle = abs(stepperCtrl.getCurrentAngle());
 			pos=ANGLE_T0_DEGREES(currentAngle);
@@ -1116,16 +1110,15 @@ static int FilamentLength_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 			
 			if (isCapturing)
 			{
-				x=int(pos) - previousPullerTicks;
-				
+				x=int64_t(pos) - previousPullerTicks;
 			}
 			else
 			{
 				x = previousPullerTicks;
 			}
-			float filamentLength = x * 0.0002953125;
-			remain = abs(((float)filamentLength - (int32_t)filamentLength) * 100);
-			CommandPrintf(ptrUart,"1;FilamentLength;%d.%02d",(int32_t)filamentLength, remain );
+			int64_t filamentLength = (x * 1000) / 3385.0;
+			remain = (((float)filamentLength / 1000.0) - ((int32_t)filamentLength / 1000)) * 1000;
+			CommandPrintf(ptrUart,"1;FilamentLength;%d.%03d;",(int32_t)filamentLength/1000, (int32_t)remain );
 		}
 	}
 	
@@ -1160,7 +1153,7 @@ static int Feedrate_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 
 				feedRate = (filamentLength * timeDifference) / 1000;	
 				if (!firstPass)		
-					CommandPrintf(ptrUart,"1;Feedrate;%d",feedRate );
+					CommandPrintf(ptrUart,"1;Feedrate;%d;",feedRate );
 					
 				firstPass = false;
 
@@ -1238,7 +1231,7 @@ static int PullerRestartReason_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 			break;
 		}
 
-		CommandPrintf(ptrUart,"1;PullerRestartReason;%s",reason );
+		CommandPrintf(ptrUart,"1;PullerRestartReason;%s;",reason );
 	}
 
 }
@@ -1449,17 +1442,17 @@ static int vpid_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 		int32_t x,y;
 		x=(int32_t)NVM->vPID.Kp;
 		y=abs(1000*NVM->vPID.Kp-(x*1000));
-		CommandPrintf(ptrUart,"1;vpid;Kp %d.%03d\n\r",x,y);
+		CommandPrintf(ptrUart,"1;vpid;Kp %d.%03d;\n\r",x,y);
 		
 		delay(10);
 		x=(int32_t)NVM->vPID.Ki;
 		y=abs(1000*NVM->vPID.Ki-(x*1000));
-		CommandPrintf(ptrUart,"1;vpid;Ki %d.%03d\n\r",x,y);
+		CommandPrintf(ptrUart,"1;vpid;Ki %d.%03d;\n\r",x,y);
 
 		delay(10);
 		x=(int32_t)NVM->vPID.Kd;
 		y=abs(1000*NVM->vPID.Kd-(x*1000));
-		CommandPrintf(ptrUart,"1;vpid;Kd %d.%03d\n\r",x,y);
+		CommandPrintf(ptrUart,"1;vpid;Kd %d.%03d;\n\r",x,y);
 	}
 	if (3 == argc)
 	{

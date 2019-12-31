@@ -75,9 +75,23 @@ int CommandPrintf(sCmdUart *ptrUart, const char *fmt, ...)
      //sprintf(outbuff, "%s%s", "1;", vastr);
     ptr=vastr;
     
-		while(*ptr)
+	//add checksumming
+
+	byte checksum = 0;
+	
+	for (int i = 0; i < strlen(ptr); i++)
+	{
+		checksum = checksum ^ ptr[i]; //checksum, then add to command
+	}
+	
+	char buf[MAX_STRING] = {0};
+	sprintf(buf, "%s%d;", ptr, checksum);
+
+	char *output = buf;
+
+		while(*output)
 		{
-			ptrUart->putch(*ptr++);
+			ptrUart->putch(*output++);
 		}
 
 		return ret;
