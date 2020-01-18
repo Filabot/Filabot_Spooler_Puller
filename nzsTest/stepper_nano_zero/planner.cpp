@@ -116,42 +116,19 @@ void Planner::tick(void)
 //		SerialUSB.println(fabs(tickIncrement*2));
 //		SerialUSB.println();
 		int32_t x;
-    bool cancelState;
-    
-		if (fabs(currentSetAngle-endAngle) >= fabs(tickIncrement) && !runContinous)
+		if (fabs(currentSetAngle-endAngle) >= fabs(tickIncrement))
 		{
-    
 			currentSetAngle+=tickIncrement;
 			x=ANGLE_FROM_DEGREES(currentSetAngle);
 			ptrStepperCtrl->moveToAbsAngle(x);
 		}else
 		{
-    
-      cancelState = true;
 			//we are done, make sure we end at the right point
 			//SerialUSB.println("done");
-			//x=ANGLE_FROM_DEGREES(endAngle);
-			//ptrStepperCtrl->moveToAbsAngle(x);
-			//currentMode=PLANNER_NONE;
+			x=ANGLE_FROM_DEGREES(endAngle);
+			ptrStepperCtrl->moveToAbsAngle(x);
+			currentMode=PLANNER_NONE;
 		}
-
-   if (runContinous)
-   {
-         
-      currentSetAngle+=tickIncrement;
-      x=ANGLE_FROM_DEGREES(currentSetAngle);
-      ptrStepperCtrl->moveToAbsAngle(x);
-    
-      
-   }
-   
-
-   if (!runContinous && cancelState){
-    Serial.println("cancel");
-    x=ANGLE_FROM_DEGREES(endAngle);
-    ptrStepperCtrl->moveToAbsAngle(x);
-    currentMode=PLANNER_NONE;
-   }
 	}
 
 

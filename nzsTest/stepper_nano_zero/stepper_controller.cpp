@@ -988,10 +988,12 @@ bool StepperCtrl::vpidFeedback(int64_t desiredLoc, int64_t currentLoc, Control_t
 	static int32_t lastError=0;
 	static int64_t Iterm=0;
 	static int64_t lastSetZero = 0;
-	int64_t y,z;
-	int64_t v,dy;
-	int64_t u;
+	volatile int64_t y,z;
+	volatile int64_t v,dy;
+	volatile int64_t u;
 	
+	volatile int32_t ki = vPID.Ki;
+	volatile int64_t er;
 
 	//get the current location
 	y =currentLoc;
@@ -1009,9 +1011,9 @@ bool StepperCtrl::vpidFeedback(int64_t desiredLoc, int64_t currentLoc, Control_t
 	
 	if (enableFeedback)
 	{
-		int64_t error,U;
+		volatile int64_t error,U;
 		error = velocity-v;
-		
+		er = error;
 		
 		//code to reduce spinup
 		Iterm += (vPID.Ki * error);
@@ -1040,7 +1042,8 @@ bool StepperCtrl::vpidFeedback(int64_t desiredLoc, int64_t currentLoc, Control_t
 
 			if (u>0)
 			z=z+(fullStep);
-			else
+			
+			if (u<0)
 			z=z-(fullStep);
 
 			lastSetZero = z;
@@ -1063,6 +1066,11 @@ bool StepperCtrl::vpidFeedback(int64_t desiredLoc, int64_t currentLoc, Control_t
 		}
 		loopError=error;
 		lastError=error;
+
+		//if (abs(error) < 10000)
+		//{
+			//stepperDriver.limitCurrent(1); //reduce noise on low error
+		//}
 		
 	}
 	else
@@ -1070,7 +1078,7 @@ bool StepperCtrl::vpidFeedback(int64_t desiredLoc, int64_t currentLoc, Control_t
 		lastError=0;
 		Iterm=0;
 	}
-
+	
 	if (abs(lastError)>(systemParams.errorLimit))
 	{
 		return 1;
@@ -1086,83 +1094,95 @@ bool StepperCtrl::vpidFeedback(int64_t desiredLoc, int64_t currentLoc, Control_t
 // rate as well. But for most part it is random
 bool StepperCtrl::pidFeedback(int64_t desiredLoc, int64_t currentLoc, Control_t *ptrCtrl)
 {
-	static int count = 0;
+	static int count=0;
 
-	static int32_t maxError = 0;
-	static int32_t lastError = 0;
-	static int32_t Iterm = 0;
+	static int32_t maxError=0;
+	static int32_t lastError=0;
+	static int64_t Iterm=0;
+	int64_t steps = 0;
 	int32_t ma;
 	int64_t y;
+	
 
-	int32_t fullStep = ANGLE_STEPS / motorParams.fullStepsPerRotation;
+	int32_t fullStep=ANGLE_STEPS/motorParams.fullStepsPerRotation;
 	int32_t dy;
 
-	y = currentLoc;
+	y=currentLoc;
 
 	//add in phase prediction
-	y = y + calculatePhasePrediction(currentLoc);
+	y=y+calculatePhasePrediction(currentLoc);
+
 
 	if (enableFeedback) //if ((micros()-lastCall)>(updateRate/10))
 	{
-		int64_t error, u;
-		int32_t U, x;
+		int64_t error,u;
+		int64_t U,x;
 
 		//error is in units of degrees when 360 degrees == 65536
-		error = (desiredLoc - y); //error is currentPos-desiredPos
+		error=(desiredLoc-y); //error is currentPos-desiredPos
+		
 
-		Iterm += (pPID.Ki * error);
+		Iterm+=(pPID.Ki * error);
 
-		if (systemParams.homePin > 0 && digitalRead(systemParams.homePin) == 0)
+		if (systemParams.homePin>0 && digitalRead(systemParams.homePin)==0)
 		{
-			ma = motorParams.homeMa;
+			ma=motorParams.homeMa;
 		} else
 		{
-			ma = motorParams.currentMa;
+			ma=motorParams.currentMa;
 		}
 
 		//Over the long term we do not want error
-		// to be much more than our threshold
-		if (Iterm > (ma * CTRL_PID_SCALING) )
+    // to be much more than our threshold
+		if (Iterm>(16*4096*CTRL_PID_SCALING *(int64_t)ma))
 		{
-			Iterm = (ma * CTRL_PID_SCALING) ;
+			Iterm=(16*4096*CTRL_PID_SCALING *(int64_t)ma);
 		}
-		if (Iterm < -(ma * CTRL_PID_SCALING)  )
+		if (Iterm<-(16*4096*CTRL_PID_SCALING *(int64_t)ma))
 		{
-			Iterm = -(ma * CTRL_PID_SCALING) ;
+			Iterm=-(16*4096*CTRL_PID_SCALING*(int64_t)ma);
 		}
+   
 
-		u = ((pPID.Kp * error) + Iterm - (pPID.Kd * (lastError - error)));
+		u=((pPID.Kp * error) + Iterm - (pPID.Kd *(lastError-error))) / CTRL_PID_SCALING;
 
-		U = abs(u) / CTRL_PID_SCALING;
-		if (U > ma)
+		U=abs(u);
+		if (U>ma)
 		{
-			U = ma;
+			U=ma;
 		}
+   
 
+      		//when error is positive we need to move reverse direction
+  		if (u>0)
+  		{
+  			y=y+fullStep;
+  		}
+      if (u<0)
+  		{
+  			y=y-fullStep;
+  
+  		}
+    
+	ptrCtrl->ma=U;
+    ptrCtrl->angle=(int32_t)y;
+    if (error > 1 || error < -1)
+    {
+      moveToAngle(y,U); //if there is no error, just lock the rotor
+      
+    }
+    
+     
+    loopError = error;
+    lastError = error;
 
-		//when error is positive we need to move reverse direction
-		if (u > 0)
-		{
-			y = y + fullStep;
-		} else
-		{
-			y = y - fullStep;
-
-		}
-
-		ptrCtrl->ma = U;
-		ptrCtrl->angle = (int32_t)y;
-		moveToAngle(y, U);
-		loopError = error;
-		lastError = error;
-
-	} else
+	}else
 	{
-		lastError = 0;
-		Iterm = 0;
+		lastError=0;
+		Iterm=0;
 	}
 
-	if (abs(lastError) > (systemParams.errorLimit))
+	if (abs(lastError)>(systemParams.errorLimit))
 	{
 		return 1;
 	}
@@ -1642,6 +1662,7 @@ bool StepperCtrl::processFeedback(void)
 		}
 		case CTRL_OPEN:
 		{
+			move(1, x);
 			enableFeedback = false;
 			break;
 		}

@@ -658,13 +658,9 @@ void NZS::begin(void)
 	if (digitalRead(PIN_USB_PWR))
 	{
 		//wait for USB serial port to come alive
-		while (!SerialUSB.dtr())
+		while (!SerialUSB.dtr() && to != 0)
 		{
 			to--;
-			if (to == 0)
-			{
-				break;
-			}
 			delay(1000);
 		}     //wait for serial
 	} else
@@ -754,7 +750,9 @@ void NZS::begin(void)
 			systemParams.controllerMode=(feedbackCtrl_t)(CTRL_POS_VELOCITY_PID); //after calibration set memory for next boot
 
 			nvmWriteSystemParms(systemParams);
-			nvmWrite_vPID(0.5,0.5,0.5);
+			//nvmWrite_vPID(0.5,0.5,0.5); //for 3000hz
+			nvmWrite_vPID(0.5,2.0,0.25); // for 1500hz
+
 			stepperCtrl.updateParamsFromNVM();
 
 		}

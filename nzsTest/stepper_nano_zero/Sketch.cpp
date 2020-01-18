@@ -18,8 +18,6 @@ NZS nzs;
 
 void setup() {
 
-	
-	
 	nzs.begin();
 }
 

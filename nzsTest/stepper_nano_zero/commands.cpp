@@ -19,8 +19,8 @@ sCmdUart SerialUart;
 sCmdUart HostUart; //uart on the step/dir pins
 
 unsigned long previousMillis;//for PullerRPM command
-int64_t long previousAngle = 0;
-int64_t long previousPullerTicks = 0;
+int64_t previousAngle = 0;
+int64_t previousPullerTicks = 0;
 bool isCapturing = false;
 
 static int isPowerOfTwo (unsigned int x)
@@ -1257,10 +1257,10 @@ static int move_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 		float f;
 
 		f=atof(argv[0]);
-		//    if (f>1.8)
-		//      f=1.8;
-		//    if (f<-1.8)
-		//      f=-1.8;
+		//		if (f>1.8)
+		//			f=1.8;
+		//		if (f<-1.8)
+		//			f=-1.8;
 		x=ANGLE_FROM_DEGREES(f);
 		LOG("moving %d", x);
 
@@ -1273,10 +1273,10 @@ static int move_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 
 		f=atof(argv[0]);
 		rpm=atof(argv[1]);
-		//    if (f>1.8)
-		//      f=1.8;
-		//    if (f<-1.8)
-		//      f=-1.8;
+		//		if (f>1.8)
+		//			f=1.8;
+		//		if (f<-1.8)
+		//			f=-1.8;
 
 		SmartPlanner.moveConstantVelocity(f,rpm);
 		return 0;
@@ -1286,16 +1286,18 @@ static int move_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 		y=pos;
 		if (y>f) a=-a;
 
+		#if defined(NEMA17_SMART_STEPPER_3_21_2017) || defined(NEMA17_SMART_STEPPER_OLD) || defined(NEMA_23_3200MA_HW) || defined(NEMA_23_10A_HW)
 		SerialUSB.println(f);
 		SerialUSB.println(y);
 		SerialUSB.println(a);
+		#endif
 
 		while (abs(y-f)>(2*abs(a)))
 		{
-			//      SerialUSB.println();
-			//      SerialUSB.println(f);
-			//    SerialUSB.println(y);
-			//    SerialUSB.println(a);
+			//			SerialUSB.println();
+			//			SerialUSB.println(f);
+			//		SerialUSB.println(y);
+			//		SerialUSB.println(a);
 			y=y+a;
 
 			x=ANGLE_FROM_DEGREES(y);
@@ -1711,25 +1713,35 @@ static int testcal_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 
 static int FilamentCapture_cmd(sCmdUart *ptrUart,int argc, char * argv[])
 {
+	static bool previousCaptureState = false;
+
 	if (argc != 0)
 	{
-		isCapturing = atoi(argv[0]) == 1 ? true : false;
+		
+		bool captureState = atoi(argv[0]) == 1;
+		if (captureState)
+		{
+			isCapturing = true;
+		}
+		else
+		{
+			isCapturing = false;
+		}
+		
 	}
 	
-	if (isCapturing)
+	if (isCapturing && isCapturing != previousCaptureState)
 	{
 		previousPullerTicks = ANGLE_T0_DEGREES(abs(stepperCtrl.getCurrentAngle())); 
 	}
-	else
-	{
 	
-	int64_t currentAngle = abs(stepperCtrl.getCurrentAngle());
-	float pos=ANGLE_T0_DEGREES(currentAngle);
-	previousPullerTicks = int(pos) - previousPullerTicks;
+	if (!isCapturing && isCapturing != previousCaptureState)
+	{
+		int64_t currentAngle = abs(stepperCtrl.getCurrentAngle());
+		float pos=ANGLE_T0_DEGREES(currentAngle);
+		previousPullerTicks = int32_t(pos) - previousPullerTicks;
 	}
-	 
-
-	 
+	previousCaptureState = isCapturing;
 	
 }
 
@@ -1801,17 +1813,6 @@ void commandsInit(void)
 
 int commandsProcess(void)
 {
-	#ifdef USE_STEP_DIR_SERIAL
-	//if the step pin is configured to the SerialCom 0 then we need to process commands
-	//if PA11 (D0) is configured to perpherial C then the step pin is UART
-	if (getPinMux(PIN_STEP_INPUT) ==  PORT_PMUX_PMUXE_C_Val)
-	{
-		//SerialUSB.println("host");
-		CommandProcess(&HostUart,Cmds,' ',COMMANDS_PROMPT);
-	}
-	#endif //USE_STEP_DIR_SERIAL
-
-
 	#ifdef CMD_SERIAL_PORT
 	CommandProcess(&SerialUart,Cmds,' ',COMMANDS_PROMPT);
 	#endif

@@ -315,38 +315,20 @@ int CommandProcess(sCmdUart *ptrUart,sCommand *ptrCmds, char delimitor, char *cm
 		//ptrUart->putch(ptrUart->data);
 
 		//if the data is the CR we need to process buffer
-		if (ptrUart->data==0x0D)
+		if (ptrUart->data==0x0D || ptrUart->data==0x0A)
 		{
-			
-			
 			ptrUart->putch(0x0A);
 			if (strlen(ptrUart->buffer)>0)
 			{
-				if (ptrUart->lastChar!=ASCII_UP_ARROW)
-				{
-					strcpy(ptrUart->bufferHist[ptrUart->histIndex],ptrUart->buffer);
-					ptrUart->histIndex=(ptrUart->histIndex+1) % CMD_HISTORY;
-				}
 				CommandParse(ptrUart,ptrCmds,ptrUart->buffer,delimitor);
 			}
 
-			//CommandPrintf(ptrUart,PSTR("\n\r%s"),cmdPrompt);
 			ptrUart->buffIndex=0;
 			ptrUart->buffer[ptrUart->buffIndex]=0;
       
 		}
 
-		if (ptrUart->data==ASCII_BACKSPACE) //backspace
-		{
-			if (ptrUart->buffIndex>0)
-			{
-				ptrUart->buffIndex--;
-				ptrUart->buffer[ptrUart->buffIndex]='\0';
-				//Echo the backspace
-				ptrUart->putch(' ');
-				ptrUart->putch(ASCII_BACKSPACE);
-			}
-		}else if (ptrUart->data != 0x0A && ptrUart->data !=0x0D && ptrUart->data<127)
+		if (ptrUart->data != 0x0A && ptrUart->data !=0x0D && ptrUart->data<127)
 		{
 			ptrUart->buffer[ptrUart->buffIndex++]=ptrUart->data;
 			ptrUart->buffer[ptrUart->buffIndex]=0;
@@ -363,34 +345,8 @@ int CommandProcess(sCmdUart *ptrUart,sCommand *ptrCmds, char delimitor, char *cm
    
 	}
 
-
-	if (strstr(ptrUart->buffer,ANSI_UP)) //up arrow
-	{
-		uint8_t i;
-
-		CommandPrintf(ptrUart,PSTR("\n\r%s"),cmdPrompt);
-		i=CMD_HISTORY-1;
-		if (ptrUart->histIndex>0)
-		{
-			i=ptrUart->histIndex-1;
-		}
-		if (strlen(ptrUart->bufferHist[i])>0)
-		{
-			strcpy(ptrUart->buffer,ptrUart->bufferHist[i]);
-			ptrUart->buffIndex=strlen(ptrUart->buffer);
-			CommandPrintf(ptrUart,PSTR("%s"),ptrUart->buffer);
-		}else
-		{
-			ptrUart->buffIndex=0;
-			ptrUart->buffer[0]=0;
-		}
-		ptrUart->data=ASCII_UP_ARROW;
-	}
-
-
 	ptrUart->lastChar=ptrUart->data;
   
-  //LOG("EEPROM encoder %d",(uint16_t)a);
     
 	return 0;
 }

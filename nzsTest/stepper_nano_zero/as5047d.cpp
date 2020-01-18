@@ -1,14 +1,14 @@
 /**********************************************************************
- *      Author: tstern
- *
- *	Misfit Tech invests time and resources providing this open source code,
- *	please support Misfit Tech and open-source hardware by purchasing
- *	products from Misfit Tech, www.misifittech.net!
- *
- *	Written by Trampas Stern  for Misfit Tech.
- *	BSD license, check license.txt for more information
- *	All text above, must be included in any redistribution
- *********************************************************************/
+*      Author: tstern
+*
+*	Misfit Tech invests time and resources providing this open source code,
+*	please support Misfit Tech and open-source hardware by purchasing
+*	products from Misfit Tech, www.misifittech.net!
+*
+*	Written by Trampas Stern  for Misfit Tech.
+*	BSD license, check license.txt for more information
+*	All text above, must be included in any redistribution
+*********************************************************************/
 #include <Arduino.h>
 #include "syslog.h"
 #include "as5047d.h"
@@ -59,9 +59,9 @@ static int getParity(uint16_t data)
 
 boolean AS5047D::begin(int csPin)
 {
-#ifdef PIN_AS5047D_PWR
+	#ifdef PIN_AS5047D_PWR
 	digitalWrite(PIN_AS5047D_PWR,HIGH);
-#endif
+	#endif
 	digitalWrite(PIN_AS5047D_CS,LOW); //pull CS LOW by default (chip powered off)
 	digitalWrite(PIN_MOSI,LOW);
 	digitalWrite(PIN_SCK,LOW);
@@ -71,14 +71,14 @@ boolean AS5047D::begin(int csPin)
 
 
 	digitalWrite(PIN_AS5047D_CS,HIGH); //pull CS high
-#ifdef PIN_AS5047D_PWR
+	#ifdef PIN_AS5047D_PWR
 	digitalWrite(PIN_AS5047D_PWR,LOW);
-#endif
+	#endif
 
 	pinMode(PIN_MISO,INPUT);
 
 	error=false;
-	SPISettings settingsA(5000000, MSBFIRST, SPI_MODE1);             ///400000, MSBFIRST, SPI_MODE1);
+	SPISettings settingsA(10000000, MSBFIRST, SPI_MODE1);             ///400000, MSBFIRST, SPI_MODE1);
 	chipSelectPin=csPin;
 
 	LOG("csPin is %d",csPin);
@@ -131,16 +131,16 @@ boolean AS5047D::begin(int csPin)
 	}
 
 
-#ifdef NZS_AS5047_PIPELINE
+	#ifdef NZS_AS5047_PIPELINE
 	//read encoder a few times to flush the pipeline
 	readEncoderAnglePipeLineRead();
 	readEncoderAnglePipeLineRead();
-#endif
+	#endif
 	return true;
 }
 
 
-//read the encoders 
+//read the encoders
 int16_t AS5047D::readAddress(uint16_t addr)
 {
 	uint16_t data;
@@ -187,7 +187,7 @@ int16_t AS5047D::readAddress(uint16_t addr)
 	return data;
 }
 
-//read the encoders 
+//read the encoders
 int16_t AS5047D::readEncoderAngle(void)
 {
 	if (as5047d)
@@ -201,22 +201,34 @@ int16_t AS5047D::readEncoderAngle(void)
 int16_t AS5047D::readEncoderAnglePipeLineRead(void)
 {
 
-	int16_t data;
-	int error, t0=10;
+	volatile int16_t data;
+	int t0=10;
+	bool error = false;
 	GPIO_LOW(chipSelectPin);//(chipSelectPin, LOW);
 	//delayMicroseconds(1);
 	do {
 
 		// doing two 8 bit transfers is faster than one 16 bit
 		data =(uint16_t)SPI.transfer(0xFF)<<8 | ((uint16_t)SPI.transfer(0xFF) & 0x0FF);
+		//data=readAddress(AS5047D_CMD_ANGLECOM);
 		t0--;
 		if (t0<=0)
 		{
 			ERROR("AS5047D problem");
+			error = true;
 			break;
 		}
 		//data=SPI.transfer16(0xFFFF); //to speed things up we know the parity and address for the read
 	}while(data & (1<<14)); //while error bit is set
+
+	if (error)
+	{
+		readAddress(AS5047D_CMD_MAG);
+		readAddress(AS5047D_CMD_ANGLEUNC);
+		readAddress(AS5047D_CMD_ANGLECOM);
+		readAddress(AS5047D_CMD_ERRFL);
+		return -1;
+	}
 
 	data=data & 0x3FFF; //mask off the error and parity bits
 	GPIO_HIGH(chipSelectPin);
@@ -234,53 +246,63 @@ void AS5047D::diagnostics(char *ptrStr)
 	if (as5047d)
 	{
 
-	data=readAddress(AS5047D_CMD_DIAAGC);
+		data=readAddress(AS5047D_CMD_DIAAGC);
 
-	if (NULL == ptrStr)
-	{
-		LOG("DIAAGC: 0x%04X", data);
-		LOG("MAGL: %d", getBit(data,11));
-		LOG("MAGH: %d", getBit(data,10));
-		LOG("COF: %d", getBit(data,9));
-		LOG("LFGL: %d", getBit(data,8));
-		LOG("AGC: %d", data & 0x0FF);
+		if (NULL == ptrStr)
+		{
+			LOG("DIAAGC: 0x%04X", data);
+			LOG("MAGL: %d", getBit(data,11));
+			LOG("MAGH: %d", getBit(data,10));
+			LOG("COF: %d", getBit(data,9));
+			LOG("LFGL: %d", getBit(data,8));
+			LOG("AGC: %d", data & 0x0FF);
 
-		data=readAddress(AS5047D_CMD_MAG);
-		LOG("CMAG: 0x%04X(%d)",data,data);
+			data=readAddress(AS5047D_CMD_MAG);
+			LOG("CMAG: 0x%04X(%d)",data,data);
 
-		data=readAddress(AS5047D_CMD_ANGLEUNC);
-		m=(int)((float)data*AS5047D_DEGREES_PER_BIT);
-		d=(int)((float)data*AS5047D_DEGREES_PER_BIT*100 -m*100);
-		LOG("CORDICANG: 0x%04X(%d) %d.%02d deg(est)",data,data,m,d);
+			data=readAddress(AS5047D_CMD_ANGLEUNC);
+			m=(int)((float)data*AS5047D_DEGREES_PER_BIT);
+			d=(int)((float)data*AS5047D_DEGREES_PER_BIT*100 -m*100);
+			LOG("CORDICANG: 0x%04X(%d) %d.%02d deg(est)",data,data,m,d);
 
-		data=readAddress(AS5047D_CMD_ANGLECOM);
-		m=(int)((float)data*AS5047D_DEGREES_PER_BIT);
-		d=(int)((float)data*AS5047D_DEGREES_PER_BIT*100 -m*100);
-		LOG("DAECANG: 0x%04X(%d) %d.%02d deg(est)",data,data,m,d);
-	}else
-	{
-		sprintf(ptrStr,"DIAAGC: 0x%04X\n\r", data);
-		sprintf(ptrStr,"%sMAGL: %d\n\r", ptrStr,getBit(data,11));
-		sprintf(ptrStr,"%sMAGH: %d\n\r", ptrStr,getBit(data,10));
-		sprintf(ptrStr,"%sCOF: %d\n\r", ptrStr, getBit(data,9));
-		sprintf(ptrStr,"%sLFGL: %d\n\r", ptrStr, getBit(data,8));
-		sprintf(ptrStr,"%sAGC: %d\n\r", ptrStr,data & 0x0FF);
+			data=readAddress(AS5047D_CMD_ANGLECOM);
+			m=(int)((float)data*AS5047D_DEGREES_PER_BIT);
+			d=(int)((float)data*AS5047D_DEGREES_PER_BIT*100 -m*100);
+			LOG("DAECANG: 0x%04X(%d) %d.%02d deg(est)",data,data,m,d);
+		}
+		else
+		{
+			sprintf(ptrStr,"DIAAGC: 0x%04X\n\r", data);
+			sprintf(ptrStr,"%sMAGL: %d\n\r", ptrStr,getBit(data,11));
+			sprintf(ptrStr,"%sMAGH: %d\n\r", ptrStr,getBit(data,10));
+			sprintf(ptrStr,"%sCOF: %d\n\r", ptrStr, getBit(data,9));
+			sprintf(ptrStr,"%sLFGL: %d\n\r", ptrStr, getBit(data,8));
+			sprintf(ptrStr,"%sAGC: %d\n\r", ptrStr,data & 0x0FF);
+			
+			data=readAddress(AS5047D_CMD_MAG);
+			sprintf(ptrStr,"%sCMAG: 0x%04X(%d)\n\r", ptrStr,data,data);
 
-		data=readAddress(AS5047D_CMD_MAG);
-		sprintf(ptrStr,"%sCMAG: 0x%04X(%d)\n\r", ptrStr,data,data);
+			data=readAddress(AS5047D_CMD_ANGLEUNC);
+			m=(int)((float)data*AS5047D_DEGREES_PER_BIT);
+			d=(int)((float)data*AS5047D_DEGREES_PER_BIT*100 -m*100);
+			sprintf(ptrStr,"%sCORDICANG: 0x%04X(%d) %d.%02d deg(est)\n\r", ptrStr,data,data,m,d);
 
-		data=readAddress(AS5047D_CMD_ANGLEUNC);
-		m=(int)((float)data*AS5047D_DEGREES_PER_BIT);
-		d=(int)((float)data*AS5047D_DEGREES_PER_BIT*100 -m*100);
-		sprintf(ptrStr,"%sCORDICANG: 0x%04X(%d) %d.%02d deg(est)\n\r", ptrStr,data,data,m,d);
+			data=readAddress(AS5047D_CMD_ANGLECOM);
+			m=(int)((float)data*AS5047D_DEGREES_PER_BIT);
+			d=(int)((float)data*AS5047D_DEGREES_PER_BIT*100 -m*100);
+			sprintf(ptrStr,"%sDAECANG: 0x%04X(%d) %d.%02d deg(est)\n\r", ptrStr,data,data,m,d);
 
-		data=readAddress(AS5047D_CMD_ANGLECOM);
-		m=(int)((float)data*AS5047D_DEGREES_PER_BIT);
-		d=(int)((float)data*AS5047D_DEGREES_PER_BIT*100 -m*100);
-		sprintf(ptrStr,"%sDAECANG: 0x%04X(%d) %d.%02d deg(est)\n\r", ptrStr,data,data,m,d);
+			
+			data=readAddress(AS5047D_CMD_ERRFL);
+			sprintf(ptrStr,"%sFRERR: %d\n\r", ptrStr, getBit(data,0));
+			sprintf(ptrStr,"%sINVCOMM: %d\n\r", ptrStr, getBit(data,1));
+			sprintf(ptrStr,"%sPARERR: %d\n\r", ptrStr, getBit(data,2));
 
-	}
-	} else
+
+
+		}
+	} 
+	else
 	{
 		data=readAddress(AS5048A_CMD_DIAAGC);
 		sprintf(ptrStr,"AS5048A DIAAGC: 0x%04X\n\r", data);
